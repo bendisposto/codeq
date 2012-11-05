@@ -1,0 +1,1 @@
+:- write('{:victory true}'),nl.

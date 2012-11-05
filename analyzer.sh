@@ -1,0 +1,1 @@
+sicstus -l ../codeq_analyzer.pl --goal "halt."
