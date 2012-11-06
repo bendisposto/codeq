@@ -17,9 +17,9 @@
   (if loc
     (let [sha (-> seg az/ws-minify az/sha)
           codeid (sha->id sha)
-          newcodeid (and (tempid? codeid) (not (added codeid)))
-          ret (cond-> ret newcodeid (conj {:db/id codeid :code/sha sha :code/text seg}))
-          added (cond-> added newcodeid (conj codeid))
+          newcodeid? (and (tempid? codeid) (not (added codeid)))
+          ret (cond-> ret newcodeid? (conj {:db/id codeid :code/sha sha :code/text seg}))
+          added (cond-> added newcodeid? (conj codeid))
 
           codeqid (or (ffirst (d/q '[:find ?e :in $ ?f ?loc
                                      :where [?e :codeq/file ?f] [?e :codeq/loc ?loc]]
