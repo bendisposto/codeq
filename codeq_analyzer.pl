@@ -9,6 +9,8 @@
 
 :- dynamic exports/3, predicates/5, dynamics/1, in_module/1.
 
+in_module('user').
+
 write_exports :-
     exports(Module,Name,Arity),
     format('["~w" "~w" ~w]', [Module,Name,Arity]),
@@ -117,7 +119,7 @@ assert_dynamics(X) :-
     !, assert(dynamics(X)).
 
 analyze((:- module(Name, ListOfExported)), Layout, (:- module(Name,ListOfExported))) :-
-    !, assert(in_module(Name)),maplist(assert_exports(Name),ListOfExported).
+    !, retract(in_module(_)), assert(in_module(Name)),maplist(assert_exports(Name),ListOfExported).
 analyze((:- dynamic(X)), Layout, (:- dynamic(X))) :-
     !, assert_dynamics(X).
 %analyze((:- meta(X)), Layout, (:- dynamic(X))) :-
