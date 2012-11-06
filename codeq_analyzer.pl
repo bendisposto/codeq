@@ -78,6 +78,7 @@ analyze((:- module(Name, ListOfExported)), Layout, (:- module(Name,ListOfExporte
 analyze((:- dynamic(X)), Layout, (:- dynamic(X))) :-
     !, assert_dynamics(X).
 analyze((:- _),_Layout,(:- true)) :- !.
+analyze((?- X),_Layout,(?- X)) :- !.
 analyze(end_of_file,_Layout,end_of_file) :- !.
 
 analyze((Head :- Body), [LayoutHead | LayoutSub], (Head :- Body)) :-
