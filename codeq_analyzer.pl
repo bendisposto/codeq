@@ -3,10 +3,11 @@
 :- prolog_flag(profiling,_,on).
 
 :- use_module(library(lists)).
+:- use_module(library(terms)).
 
 :- op(300, fy, ~~).
 
-:- dynamic exports/3, predicates/5, dynamics/1.
+:- dynamic exports/3, predicates/5, dynamics/1, in_module/1.
 
 write_exports :-
     exports(Module,Name,Arity),
@@ -14,9 +15,51 @@ write_exports :-
     fail.
 write_exports.
 
+write_predicates :-
+    findall(pr(Name,Ar), predicates(Name,Ar,_,_,_), ListOfNames),
+    remove_dups(ListOfNames,ListOfNames2),
+    write_predicates(ListOfNames2).
+write_predicates([]).
+write_predicates([pr(Name,Ar)|Names]) :-
+    write_predicates2(Name,Ar,[],[],0),
+    write_predicates(Names).
+
+bind_args(Args,VC,VCN) :-
+    term_variables(Args,Variables),
+    bind_args2(Variables,VC,VCN).
+bind_args2([],X,X).
+bind_args2([V|Vs],VC,VCN) :-
+    number_codes(VC,CodesVC),
+    append("v",CodesVC,Codes),
+    atom_codes(V,Codes),
+    VCNT is VC + 1,
+    bind_args(Vs,VCNT,VCN).
+
+write_predicates2(Name,Ar,Code,Calls,VC) :-
+    retract(predicates(Name,Ar,Args1,Body1,Calls1)),
+    bind_args(Args1,VC,VCN),
+    bind_args(Body1,VCN,VCN2),
+    NewCode = [Args1,Body1|Code],
+    append(Calls,Calls1,NewCalls),
+    write_predicates2(Name,Ar,NewCode,NewCalls,VCN2).
+write_predicates2(Name,Ar,Code,Calls,_VNC) :-
+    (dynamics(Name/Ar)
+    -> format('{ :name "~w" :arity ~w :code "~w" :dynamic true :calls [',[Name,Ar,Code])
+    ;  format('{ :name "~w" :arity ~w :code "~w" :calls [',[Name,Ar,Code])),
+    write_calls(Calls),
+    write(']}'),nl.
+	    
+write_calls([]).
+write_calls([call(Module,Name,Ar)|Calls]) :-
+    format('["~w" "~w" ~w]', [Module,Name,Ar]),
+    write_calls(Calls).
+
 write_clj_representation :-
     write('{'), nl,
+    in_module(Module),
+    format(':module "~w"\n', [Module]),
     write(':exports ['), write_exports, write(']'), nl,
+    write(':predicates ['), write_predicates, write(']'), nl,
     write('}').
 
 layout_sub_term([],_,[]).
@@ -64,7 +107,7 @@ analyze_body((A;B),Layout,Calls) :-
     analyze_body(B,LayoutB,CallsB),
     append(CallsA,CallsB,Calls).
 analyze_body(M:X,Layout,[call(M, Fun, Ar)]) :- !, functor(X,Fun,Ar).
-analyze_body(X,Layout,[call('', Fun, Ar)]) :- !, functor(X,Fun,Ar).
+analyze_body(X,Layout,[call(nil, Fun, Ar)]) :- !, functor(X,Fun,Ar).
 
 assert_exports(Name,N/A) :-
     !, assert(exports(Name,N,A)).
@@ -74,9 +117,11 @@ assert_dynamics(X) :-
     !, assert(dynamics(X)).
 
 analyze((:- module(Name, ListOfExported)), Layout, (:- module(Name,ListOfExported))) :-
-    !, maplist(assert_exports(Name),ListOfExported).
+    !, assert(in_module(Name)),maplist(assert_exports(Name),ListOfExported).
 analyze((:- dynamic(X)), Layout, (:- dynamic(X))) :-
     !, assert_dynamics(X).
+%analyze((:- meta(X)), Layout, (:- dynamic(X))) :-
+%    !, assert_metas(X).
 analyze((:- _),_Layout,(:- true)) :- !.
 analyze((?- X),_Layout,(?- X)) :- !.
 analyze(end_of_file,_Layout,end_of_file) :- !.
