@@ -55,7 +55,7 @@
     
     ))
 
-(defn create-predicates  [_ _ _])
+(defn create-predicates  [_ _ _ _])
 
 (defn analyze [db f src] 
   (let [info (read-commit src)]
