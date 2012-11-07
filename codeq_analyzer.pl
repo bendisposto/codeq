@@ -7,7 +7,7 @@
 
 :- op(300, fy, ~~).
 
-:- dynamic exports/3, imports/3, imports/1, predicates/7, dynamics/1, in_module/1.
+:- dynamic exports/3, imports/3, imports/1, predicates/7, dynamics/1, metas/1, in_module/1.
 
 in_module('user').
 
@@ -54,6 +54,11 @@ bind_args2([V|Vs],VC,VCN) :-
     VCNT is VC + 1,
     bind_args(Vs,VCNT,VCN).
 
+is_dynamic(Name,Ar,':dynamic true') :- dynamics(Name/Ar), !.
+is_dynamic(_Name,_Ar,':dynamic false').
+is_meta(Name,Ar,':meta true') :- metas(Name/Ar), !.
+is_meta(_Name,_Ar,':meta false').
+
 write_predicates2(Name,Ar,Code,Calls,StartLines,EndLines,VC) :-
     retract(predicates(Name,Ar,Args1,Body1,Calls1,StartLine,EndLine)),
     bind_args(Args1,VC,VCN),
@@ -62,9 +67,8 @@ write_predicates2(Name,Ar,Code,Calls,StartLines,EndLines,VC) :-
     append(Calls,Calls1,NewCalls),
     write_predicates2(Name,Ar,NewCode,NewCalls,[StartLine|StartLines],[EndLine|EndLines],VCN2).
 write_predicates2(Name,Ar,Code,Calls,StartLines,EndLines,_VNC) :-
-    (dynamics(Name/Ar)
-    -> format('{ :name "~w" :arity ~w :code "~w" :startlines ~w :endlines ~w :dynamic true :calls [',[Name,Ar,Code,StartLines,EndLines])
-    ;  format('{ :name "~w" :arity ~w :code "~w" :startlines ~w :endlines ~w :calls [',[Name,Ar,Code,StartLines,EndLines])),
+    is_dynamic(Name,Ar,Dynamic), is_meta(Name,Ar,Meta),
+    format('{ :name "~w" :arity ~w :code "~w" :startlines ~w :endlines ~w ~w ~w :calls [',[Name,Ar,Code,StartLines,EndLines,Dynamic,Meta]),
     write_calls(Calls),
     write(']}'),nl.
 	    
@@ -138,6 +142,11 @@ assert_dynamics((X,Y)) :-
     !, assert(dynamics(X)), assert_dynamics(Y).
 assert_dynamics(X) :-
     !, assert(dynamics(X)).
+assert_metas((X,Y)) :-
+    !, assert_metas(X), assert_metas(Y).
+assert_metas(Term) :-
+    !, functor(Term,Fun,Arg),
+    (metas(Fun/Arg) -> true ; assert(metas(Fun/Arg))).
 
 analyze((:- module(Name, ListOfExported)), _Layout, (:- module(Name,ListOfExported))) :-
     !, retract(in_module(_)), assert(in_module(Name)),maplist(assert_exports(Name),ListOfExported).
@@ -145,10 +154,10 @@ analyze((:- use_module(Name, ListOfImported)), Layout, (:- true)) :-
     !, maplist(assert_imports(Name),ListOfImported).
 analyze((:- use_module(Name)), _Layout, (:- true)) :-
     !, assert(imports(Name)).
-analyze((:- dynamic(X)), _Layout, (:- dynamic(X))) :-
+analyze((:- dynamic X), _Layout, (:- dynamic X)) :-
     !, assert_dynamics(X).
-%analyze((:- meta(X)), Layout, (:- dynamic(X))) :-
-%    !, assert_metas(X).
+analyze((:- meta(X)), Layout, (:- true)) :-
+    !, assert_metas(X).
 analyze((:- _),_Layout,(:- true)) :- !.
 analyze((?- X),_Layout,(?- X)) :- !.
 analyze(end_of_file,_Layout,end_of_file) :- !.
