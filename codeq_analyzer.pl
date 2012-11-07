@@ -7,9 +7,14 @@
 
 :- op(300, fy, ~~).
 
-:- dynamic exports/3, imports/3, imports/1, predicates/5, dynamics/1, in_module/1.
+:- dynamic exports/3, imports/3, imports/1, predicates/7, dynamics/1, in_module/1.
 
 in_module('user').
+
+flatten(List,FlatList) :- flatten1(List,[],FlatList).
+flatten1([],L,L) :- !.
+flatten1([H|T],Tail,List) :- !, flatten1(H,FlatList,List), flatten1(T,Tail,FlatList).
+flatten1(NonList,Tail,[NonList|Tail]).
 
 write_exports :-
     exports(Module,Name,Arity),
@@ -30,12 +35,12 @@ write_import3 :-
 write_import3.
 
 write_predicates :-
-    findall(pr(Name,Ar), predicates(Name,Ar,_,_,_), ListOfNames),
+    findall(pr(Name,Ar), predicates(Name,Ar,_,_,_,_,_), ListOfNames),
     remove_dups(ListOfNames,ListOfNames2),
     write_predicates(ListOfNames2).
 write_predicates([]).
 write_predicates([pr(Name,Ar)|Names]) :-
-    write_predicates2(Name,Ar,[],[],0),
+    write_predicates2(Name,Ar,[],[],[],[],0),
     write_predicates(Names).
 
 bind_args(Args,VC,VCN) :-
@@ -49,17 +54,17 @@ bind_args2([V|Vs],VC,VCN) :-
     VCNT is VC + 1,
     bind_args(Vs,VCNT,VCN).
 
-write_predicates2(Name,Ar,Code,Calls,VC) :-
-    retract(predicates(Name,Ar,Args1,Body1,Calls1)),
+write_predicates2(Name,Ar,Code,Calls,StartLines,EndLines,VC) :-
+    retract(predicates(Name,Ar,Args1,Body1,Calls1,StartLine,EndLine)),
     bind_args(Args1,VC,VCN),
     bind_args(Body1,VCN,VCN2),
     NewCode = [Args1,Body1|Code],
     append(Calls,Calls1,NewCalls),
-    write_predicates2(Name,Ar,NewCode,NewCalls,VCN2).
-write_predicates2(Name,Ar,Code,Calls,_VNC) :-
+    write_predicates2(Name,Ar,NewCode,NewCalls,[StartLine|StartLines],[EndLine|EndLines],VCN2).
+write_predicates2(Name,Ar,Code,Calls,StartLines,EndLines,_VNC) :-
     (dynamics(Name/Ar)
-    -> format('{ :name "~w" :arity ~w :code "~w" :dynamic true :calls [',[Name,Ar,Code])
-    ;  format('{ :name "~w" :arity ~w :code "~w" :calls [',[Name,Ar,Code])),
+    -> format('{ :name "~w" :arity ~w :code "~w" :startlines ~w :endlines ~w :dynamic true :calls [',[Name,Ar,Code,StartLines,EndLines])
+    ;  format('{ :name "~w" :arity ~w :code "~w" :startlines ~w :endlines ~w :calls [',[Name,Ar,Code,StartLines,EndLines])),
     write_calls(Calls),
     write(']}'),nl.
 	    
@@ -134,13 +139,13 @@ assert_dynamics((X,Y)) :-
 assert_dynamics(X) :-
     !, assert(dynamics(X)).
 
-analyze((:- module(Name, ListOfExported)), Layout, (:- module(Name,ListOfExported))) :-
+analyze((:- module(Name, ListOfExported)), _Layout, (:- module(Name,ListOfExported))) :-
     !, retract(in_module(_)), assert(in_module(Name)),maplist(assert_exports(Name),ListOfExported).
 analyze((:- use_module(Name, ListOfImported)), Layout, (:- true)) :-
     !, maplist(assert_imports(Name),ListOfImported).
-analyze((:- use_module(Name)), Layout, (:- true)) :-
+analyze((:- use_module(Name)), _Layout, (:- true)) :-
     !, assert(imports(Name)).
-analyze((:- dynamic(X)), Layout, (:- dynamic(X))) :-
+analyze((:- dynamic(X)), _Layout, (:- dynamic(X))) :-
     !, assert_dynamics(X).
 %analyze((:- meta(X)), Layout, (:- dynamic(X))) :-
 %    !, assert_metas(X).
@@ -153,11 +158,15 @@ analyze((Head :- Body), [LayoutHead | LayoutSub], (Head :- Body)) :-
     analyze_body(Body,SubLay,Calls),
     functor(Head,Fun,Ar),
     Head =.. [Fun|Args],
-    assert(predicates(Fun,Ar,Args,Body,Calls)).
-analyze(Fact, _Layout, Fact) :-
+    flatten([LayoutHead|LayoutSub],[StartLine|FlatLayout]),
+    (FlatLayout = [] -> EndLine = StartLine ; last(FlatLayout,EndLine)),
+    assert(predicates(Fun,Ar,Args,Body,Calls,StartLine,EndLine)).
+analyze(Fact, Layout, Fact) :-
     !, functor(Fact,Fun,Ar),
     Fact =.. [Fun|Args],
-    assert(predicates(Fun,Ar,Args,'',[])).
+    flatten(Layout,[StartLine|FlatLayout]),
+    (FlatLayout = [] -> EndLine = StartLine ; last(FlatLayout,EndLine)),
+    assert(predicates(Fun,Ar,Args,'',[],StartLine,EndLine)).
 
 user:term_expansion(Term1, Lay1, Tokens1, Term2, [], [codeq | Tokens1]) :-
     nonmember(codeq, Tokens1), % do not expand if already expanded
