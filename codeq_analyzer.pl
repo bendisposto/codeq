@@ -7,7 +7,7 @@
 
 :- op(300, fy, ~~).
 
-:- dynamic exports/3, predicates/5, dynamics/1, in_module/1.
+:- dynamic exports/3, imports/3, imports/1, predicates/5, dynamics/1, in_module/1.
 
 in_module('user').
 
@@ -16,6 +16,18 @@ write_exports :-
     format('["~w" "~w" ~w]', [Module,Name,Arity]),
     fail.
 write_exports.
+
+write_import1 :-
+    imports(Name),
+    format('"~w "',[Name]),
+    fail.
+write_import1.
+    
+write_import3 :-
+    imports(Module,Name,Arity),
+    format('["~w" "~w" ~w]', [Module,Name,Arity]),
+    fail.
+write_import3.
 
 write_predicates :-
     findall(pr(Name,Ar), predicates(Name,Ar,_,_,_), ListOfNames),
@@ -62,6 +74,8 @@ write_clj_representation :-
     format(':module "~w"\n', [Module]),
     write(':exports ['), write_exports, write(']'), nl,
     write(':predicates ['), write_predicates, write(']'), nl,
+    write(':import_module ['), write_import1, write(']'), nl,
+    write(':import_predicates ['), write_import3, write(']'), nl,
     write('}').
 
 layout_sub_term([],_,[]).
@@ -113,6 +127,8 @@ analyze_body(X,Layout,[call(nil, Fun, Ar)]) :- !, functor(X,Fun,Ar).
 
 assert_exports(Name,N/A) :-
     !, assert(exports(Name,N,A)).
+assert_imports(Name,N/A) :-
+    !, assert(imports(Name,N,A)).
 assert_dynamics((X,Y)) :-
     !, assert(dynamics(X)), assert_dynamics(Y).
 assert_dynamics(X) :-
@@ -120,6 +136,10 @@ assert_dynamics(X) :-
 
 analyze((:- module(Name, ListOfExported)), Layout, (:- module(Name,ListOfExported))) :-
     !, retract(in_module(_)), assert(in_module(Name)),maplist(assert_exports(Name),ListOfExported).
+analyze((:- use_module(Name, ListOfImported)), Layout, (:- true)) :-
+    !, maplist(assert_imports(Name),ListOfImported).
+analyze((:- use_module(Name)), Layout, (:- true)) :-
+    !, assert(imports(Name)).
 analyze((:- dynamic(X)), Layout, (:- dynamic(X))) :-
     !, assert_dynamics(X).
 %analyze((:- meta(X)), Layout, (:- dynamic(X))) :-
