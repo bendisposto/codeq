@@ -154,9 +154,9 @@ analyze((:- use_module(Name, ListOfImported)), Layout, (:- true)) :-
     !, maplist(assert_imports(Name),ListOfImported).
 analyze((:- use_module(Name)), _Layout, (:- true)) :-
     !, assert(imports(Name)).
-analyze((:- dynamic X), _Layout, (:- dynamic X)) :-
+analyze((:- dynamic(X)), _Layout, (:- dynamic(X))) :-
     !, assert_dynamics(X).
-analyze((:- meta(X)), Layout, (:- true)) :-
+analyze((:- meta_predicate(X)), Layout, (:- true)) :-
     !, assert_metas(X).
 analyze((:- _),_Layout,(:- true)) :- !.
 analyze((?- X),_Layout,(?- X)) :- !.
