@@ -33,10 +33,13 @@
   (let [pred-sha (az/sha (str module ":" predicate "/" arity))
         name-id (codename->id predicate)
         pred-id (sha->id pred-sha)
-        module-id (codename->id module)
-]
+        module-id (codename->id module)]
     [ {:db/id name-id :code/name predicate}
       {:db/id pred-id :prolog/predicatename name-id  :predicate/arity arity :predicate/module module-id}]))
+
+;; (defn mk-module-import [ctx mod] (let [module-d (codename->id module
+;;                                                  )]   )  )
+
 
 (defn create-module [{ :keys [module exports import_module import_predicates] :as info} {:keys [codename->id sha->id added] :as ctx} src datoms]
   (let [name-id (codename->id module)
@@ -44,16 +47,13 @@
         name-tx (if newid? [{:db/id name-id :code/name module}] [])
         added (if newid? (conj added name-id) added) 
         exports-tx  (mapcat (partial mk-export ctx) exports)
-
-
-                                        ; add module enity
-                                        ; add exports
+        import-mod-tx []; (mapcat (partial mk-module-import ctx) import_module)
                                         ; add used modules
                                         ; add used predicates
-        ]
+        transaction (concat name-tx exports-tx)]
 
-    (println name-tx exports-tx)
-    (concat name-tx exports-tx)))
+    (println name-tx exports-tx import-mod-tx)
+    transaction))
 
 (defn create-predicates  [_ _ _ _])
 
@@ -78,9 +78,12 @@
       (let [info (read-string (slurp t))]
         (assert (map? info) (str "Got error from prolog: " info))
         (assert (< 0 (count info)))
+        (println info)
         (create-module info ctx src [])))))
 
 (defn impl [] (SicstusAnalyzer.))
+
+
 
 (defn schemas []
   {1 [{:db/id #db/id[:db.part/db]
