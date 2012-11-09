@@ -28,14 +28,14 @@
 
           op (first x)
           ns? (= op 'ns)
-          defing (and ns
+          defing? (and ns
                       (symbol? op)
                       (.startsWith (name op) "def"))
           
           naming (let [nsym (second x)]
                    (cond 
                     ns? (str nsym)
-                    defing (if (namespace nsym)
+                    defing? (if (namespace nsym)
                              (str nsym)
                              (str (symbol (name ns) (name nsym))))))
 
@@ -51,7 +51,7 @@
                       ns?
                       (conj [:db/add codeqid :clj/ns nameid])
 
-                      defing
+                      defing?
                       (conj [:db/add codeqid :clj/def nameid]
                             [:db/add codeqid :clj/defop (str op)])
                       
