@@ -14,9 +14,6 @@
       .getInputStream 
       io/reader))
 
-(defn sha->id [db sha] ((index->id-fn db :code/sha) sha))
-(defn codename->id [db n] ((index->id-fn db :code/name) n))
-
 (deftype SicstusAnalyzer []
   az/Analyzer
   (keyname [a] :sicstus)
@@ -32,45 +29,56 @@
     (with-open [s (exec-stream filename)]
       (read-string (slurp s)))))
 
-(defn mk-export [db module-id [module predicate arity]] 
+(defn mk-export [{:keys [codename->id sha->id]} [module predicate arity]] 
   (let [pred-sha (az/sha (str module ":" predicate "/" arity))
-        name-id (codename->id db predicate)
-        pred-id (sha->id db pred-sha)
-;        module-id (codename->id db module)
+        name-id (codename->id predicate)
+        pred-id (sha->id pred-sha)
+        module-id (codename->id module)
 ]
     [ {:db/id name-id :code/name predicate}
       {:db/id pred-id :prolog/predicatename name-id  :predicate/arity arity :predicate/module module-id}]))
 
-(defn create-module [{ :keys [module exports import_module import_predicates] :as info} db src datoms]
-  (let [name-id (codename->id db module)
-        name-tx (if (tempid? name-id) [{:db/id name-id :code/name module}] [])
-        exports-tx (mapcat (partial mk-export db name-id) exports)
+(defn create-module [{ :keys [module exports import_module import_predicates] :as info} {:keys [codename->id sha->id added] :as ctx} src datoms]
+  (let [name-id (codename->id module)
+        newid? (and (tempid? name-id) (not (added name-id)))
+        name-tx (if newid? [{:db/id name-id :code/name module}] [])
+        added (if newid? (conj added name-id) added) 
+        exports-tx  (mapcat (partial mk-export ctx) exports)
 
 
                                         ; add module enity
                                         ; add exports
                                         ; add used modules
                                         ; add used predicates
-
         ]
 
     (println name-tx exports-tx)
-
-    ))
+    (concat name-tx exports-tx)))
 
 (defn create-predicates  [_ _ _ _])
+
+(defn mk-path [s] (apply str (cons "." (interleave (repeat "/") (rest (.split s "/"))))))
+
 
 (defn analyze [db f src] 
   (let [sha (:git/sha (d/entity db f))
         commit-info (get-commit db sha)
         commit  (ffirst commit-info)
-        filename (second (first commit-info))
+        filename (mk-path (second (first commit-info)))
+        ctx { :sha->id (index->id-fn db :code/sha)
+             :codename->id (index->id-fn db :code/name)
+             :added #{}
+             }
         ]
     (assert (= 1 (count commit-info)))
     (assert (= 2 (count (first commit-info))))
     (println "Checking out commit " commit " to analyze " filename)
     (with-open [s (exec-stream (str "git checkout " commit))
-                t (exec-stream (str "../analyzer.sh " filename))] (println (read-string (slurp t))))))
+                t (exec-stream (str "../analyzer.sh " filename))]
+      (let [info (read-string (slurp t))]
+        (assert (map? info) (str "Got error from prolog: " info))
+        (assert (< 0 (count info)))
+        (create-module info ctx src [])))))
 
 (defn impl [] (SicstusAnalyzer.))
 
@@ -167,7 +175,8 @@
     [?e :git/type :commit]
     [?e :commit/tree ?t]
     [?obj :node/object ?y]
-    [?obj :node/filename ?fn]
+    [?obj :node/paths ?fn]
+ ;   [?obj :node/filename ?fn]
     [?fn :file/name ?x]
     (blob ?t ?y)
     [?y :git/sha ?sha ?tx]]
