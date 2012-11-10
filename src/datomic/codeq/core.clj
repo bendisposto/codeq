@@ -13,7 +13,6 @@
             [clojure.string :as string]
             [datomic.codeq.util :refer [cond-> index->id-fn tempid?]]
             [datomic.codeq.analyzer :as az]
-            [datomic.codeq.analyzers.clj]
             [datomic.codeq.analyzers.sicstus-pl])
   (:import java.util.Date)
   (:gen-class))
@@ -468,7 +467,10 @@
     (d/request-index conn)
     (println "Import complete!")))
 
-(def analyzers [(datomic.codeq.analyzers.clj/impl) (datomic.codeq.analyzers.sicstus-pl/impl)])
+(def analyzers [
+  (datomic.codeq.analyzers.sicstus-pl/impl) 
+  ;(datomic.codeq.analyzers.clj/impl)
+  ])
 
 (defn run-analyzers
   [conn]
