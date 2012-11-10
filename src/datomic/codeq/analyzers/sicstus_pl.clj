@@ -52,7 +52,7 @@
                                         ; add used predicates
         transaction (concat name-tx exports-tx)]
 
-    (println name-tx exports-tx import-mod-tx)
+  ;  (println name-tx exports-tx import-mod-tx)
     transaction))
 
 (defn create-predicates  [_ _ _ _])
@@ -78,20 +78,31 @@
       (let [info (read-string (slurp t))]
         (assert (map? info) (str "Got error from prolog: " info))
         (assert (< 0 (count info)))
-        (println info)
+       ; (println info)
         (create-module info ctx src [])))))
 
 (defn impl [] (SicstusAnalyzer.))
 
-
+(defmacro add [cardinality name type]
+  `{:db/id ~(d/tempid :db.part/db)
+    :db/ident ~(keyword (str name))
+    :db/valueType ~(keyword "db.type" (str type))
+    :db/cardinality ~(keyword "db.cardinality" (str cardinality))
+    :db/doc ~(str name)
+    :db.install/_attribute :db.part/db}
+  )
 
 (defn schemas []
-  {1 [{:db/id #db/id[:db.part/db]
-       :db/ident :prolog/module
-       :db/valueType :db.type/ref
-       :db/cardinality :db.cardinality/one
-       :db/doc "prolog module name"
-       :db.install/_attribute :db.part/db}
+  {1 [
+      (add one prolog/module ref)
+
+      
+      ;; {:db/id #db/id[:db.part/db]
+      ;;  :db/ident :prolog/module
+      ;;  :db/valueType :db.type/ref
+      ;;  :db/cardinality :db.cardinality/one
+      ;;  :db/doc "prolog module name"
+      ;;  :db.install/_attribute :db.part/db}
 
       {:db/id #db/id[:db.part/db]
        :db/ident :prolog/use_module
