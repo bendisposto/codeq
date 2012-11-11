@@ -26,8 +26,8 @@
   (let [file     (.getAbsolutePath (File/createTempFile "codeq" ".pl")) 
         filename (str "../analyzer.sh " file)]
     (spit file src)
-    (with-open [s (exec-stream filename)]
-      (read-string (slurp s)))))
+    (with-open [s (exec-stream filename) content (slurp s)]
+      (println content) (read-string content))))
 
 (defn mk-export [{:keys [codename->id sha->id]} [module predicate arity]] 
   (let [pred-sha (az/sha (str module ":" predicate "/" arity))
@@ -62,145 +62,65 @@
 
 (defn analyze [db f src] 
   (let [sha (:git/sha (d/entity db f))
-        commit-info (get-commit db sha)
-        commit  (ffirst commit-info)
-        filename (mk-path (second (first commit-info)))
-        ctx { :sha->id (index->id-fn db :code/sha)
-             :codename->id (index->id-fn db :code/name)
-             :added #{}
-             }
-        ]
-    (assert (= 1 (count commit-info)))
+        commit-info (get-commit db sha)]
+    (assert (= 1 (count commit-info)) (str commit-info))
     (assert (= 2 (count (first commit-info))))
-    (println "Checking out commit " commit " to analyze " filename)
-    (with-open [s (exec-stream (str "git checkout " commit))
-                t (exec-stream (str "../analyzer.sh " filename))]
-      (let [info (read-string (slurp t))]
-        (assert (map? info) (str "Got error from prolog: " info))
-        (assert (< 0 (count info)))
-       ; (println info)
-        (create-module info ctx src [])))))
+    (let [commit  (ffirst commit-info)
+          filename (mk-path (second (first commit-info)))
+          ctx { :sha->id (index->id-fn db :code/sha)
+               :codename->id (index->id-fn db :code/name)
+               :added #{}
+               }
+          ]
+      (println "Checking out commit " commit " to analyze " filename)
+      (println (str "git checkout " commit))
+      (println (str "../analyzer.sh " filename))
+      (with-open [s (exec-stream (str "git checkout " commit))
+                  t (exec-stream (str "../analyzer.sh " filename))]
+        (let [info (read-string (slurp t))]
+          (assert (map? info) (str "Got error from prolog: " info))
+          (assert (< 0 (count info)))
+                                         (println info)
+          (create-module info ctx src []))))))
 
 (defn impl [] (SicstusAnalyzer.))
 
-(defmacro add [cardinality name type]
-  `{:db/id ~(d/tempid :db.part/db)
+(defmacro attr 
+  ([name cardinality type] `(attr ~name ~cardinality ~type {}))
+  ([name cardinality type other]
+  `(merge other {:db/id ~(d/tempid :db.part/db)
     :db/ident ~(keyword (str name))
     :db/valueType ~(keyword "db.type" (str type))
     :db/cardinality ~(keyword "db.cardinality" (str cardinality))
-    :db/doc ~(str name)
-    :db.install/_attribute :db.part/db}
-  )
+    :db.install/_attribute :db.part/db})))
 
 (defn schemas []
-  {1 [
-      (add one prolog/module ref)
+  {1 [(attr prolog/module one ref)
+      (attr prolog/use_module many ref)
+      (attr prolog/use_predicate many ref)
+      (attr prolog/export many ref)
+      (attr prolog/predicate many ref)
+      (attr prolog/predicatename one ref)
+      (attr predicate/module one ref)
+      (attr predicate/arity one long)
+      (attr predicate/dynamic one boolean)
+      (attr predicate/meta one boolean)
+      (attr predicate/dynamic one boolean)
+      (attr predicate/startline one long)
+      (attr predicate/endline one long)]})
 
-      
-      ;; {:db/id #db/id[:db.part/db]
-      ;;  :db/ident :prolog/module
-      ;;  :db/valueType :db.type/ref
-      ;;  :db/cardinality :db.cardinality/one
-      ;;  :db/doc "prolog module name"
-      ;;  :db.install/_attribute :db.part/db}
+(defn get-commit [db sha]
+  (print "Searching for " sha)
+  (let [res (d/q
+          '[:find ?commit-sha ?file-name
+            :in $ ?sha
+            :where
+            [?file-id :git/sha ?sha ?tx]
+            [?commit-id :git/type :commit ?tx]
+            [?commit-id :git/sha ?commit-sha]
+            [?obj :node/object ?file-id]
+            [?obj :node/paths ?fne]
+            [?fne :file/name ?file-name]] db sha)]
+    (println " yields commit " res)
+    res))
 
-      {:db/id #db/id[:db.part/db]
-       :db/ident :prolog/use_module
-       :db/valueType :db.type/ref
-       :db/cardinality :db.cardinality/many
-       :db/doc "prolog used modules"
-       :db.install/_attribute :db.part/db}  
-
-      {:db/id #db/id[:db.part/db]
-       :db/ident :prolog/use_predicate
-       :db/valueType :db.type/ref
-       :db/cardinality :db.cardinality/many
-       :db/doc "prolog used predicates"
-       :db.install/_attribute :db.part/db}  
-
-      {:db/id #db/id[:db.part/db]
-       :db/ident :prolog/export
-       :db/valueType :db.type/ref
-       :db/cardinality :db.cardinality/many
-       :db/doc "exported predicates"
-       :db.install/_attribute :db.part/db}  
-
-      {:db/id #db/id[:db.part/db]
-       :db/ident :prolog/predicate
-       :db/valueType :db.type/ref
-       :db/cardinality :db.cardinality/many
-       :db/doc "A reference to a predicate module:predicate/arity"
-       :db.install/_attribute :db.part/db}  
-
-      {:db/id #db/id[:db.part/db]
-       :db/ident :prolog/predicatename
-       :db/valueType :db.type/ref
-       :db/cardinality :db.cardinality/one
-       :db/doc "predicate name"
-       :db.install/_attribute :db.part/db}  
-
-      {:db/id #db/id[:db.part/db]
-       :db/ident :predicate/module
-       :db/valueType :db.type/ref
-       :db/cardinality :db.cardinality/one
-       :db/doc "module that defines the predicate"
-       :db.install/_attribute :db.part/db} 
-
-      {:db/id #db/id[:db.part/db]
-       :db/ident :predicate/arity
-       :db/valueType :db.type/long
-       :db/cardinality :db.cardinality/one
-       :db/doc "Arity of the predicate"
-       :db.install/_attribute :db.part/db}  
-
-      {:db/id #db/id[:db.part/db]
-       :db/ident :predicate/meta
-       :db/valueType :db.type/boolean
-       :db/cardinality :db.cardinality/one
-       :db/doc "Predicate is a meta predicate"
-       :db.install/_attribute :db.part/db}  
-
-      {:db/id #db/id[:db.part/db]
-       :db/ident :predicate/dynamic
-       :db/valueType :db.type/boolean
-       :db/cardinality :db.cardinality/one
-       :db/doc "Predicate is a dynamic predicate"
-       :db.install/_attribute :db.part/db}  
-      
-      {:db/id #db/id[:db.part/db]
-       :db/ident :predicate/startline
-       :db/valueType :db.type/long
-       :db/cardinality :db.cardinality/one
-       :db/doc "first line of the predicate"
-       :db.install/_attribute :db.part/db}  
-      
-      {:db/id #db/id[:db.part/db]
-       :db/ident :predicate/endline
-       :db/valueType :db.type/long
-       :db/cardinality :db.cardinality/one
-       :db/doc "last line of the predicate"
-       :db.install/_attribute :db.part/db}  
-      ]})
-
-(defn get-commit [db sha]  (d/q
-  '[:find ?f ?x
-    :in $ % ?sha
-    :where [?e :git/sha ?f ?tx]
-    [?e :git/type :commit]
-    [?e :commit/tree ?t]
-    [?obj :node/object ?y]
-    [?obj :node/paths ?fn]
- ;   [?obj :node/filename ?fn]
-    [?fn :file/name ?x]
-    (blob ?t ?y)
-    [?y :git/sha ?sha ?tx]]
-  db
-  '[[(blob ?x ?y)
-     [?x :node/object ?y]
-     [?y :git/type :blob]]
-    [(blob ?x ?y)
-     [?x :node/object ?o]
-     [?o :git/type :tree]
-     [?o :tree/nodes ?c]
-     (blob ?c ?y)]]
-  sha))
