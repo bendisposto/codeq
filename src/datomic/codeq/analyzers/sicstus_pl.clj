@@ -88,7 +88,7 @@
 (defmacro attr 
   ([name cardinality type] `(attr ~name ~cardinality ~type {}))
   ([name cardinality type other]
-  `(merge other {:db/id ~(d/tempid :db.part/db)
+  `(merge ~other {:db/id ~(d/tempid :db.part/db)
     :db/ident ~(keyword (str name))
     :db/valueType ~(keyword "db.type" (str type))
     :db/cardinality ~(keyword "db.cardinality" (str cardinality))
