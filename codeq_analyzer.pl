@@ -14,7 +14,7 @@
 :- include(prob_search_paths).
 
 
-:- dynamic exports/3, imports/3, imports/1, predicates/7, dynamics/1, metas/1, in_module/1.
+:- dynamic exports/3, imports/3, imports/1, predicates/7, dynamics/1, metas/1, in_module/1, in_clause/2.
 
 in_module('user').
 
@@ -111,6 +111,7 @@ update_call(call(Module,Call,Arity),call(Module2,Call,Arity)) :-
     -> update_module(Call,Arity,Module2)
     ;  Module2 = Module.
 
+update_module('RECURSIVE_CALL',_A,X) :- !, in_module(X).
 update_module(Call,Arity,Module2) :-
     in_module(X), functor(CallAndVar,Call,Arity),
     (predicate_property(X:CallAndVar,built_in) -> Module2 = built_in ;
@@ -163,8 +164,15 @@ analyze_body((A;B),Layout,Calls) :-
     analyze_body(A,LayoutA,CallsA),
     analyze_body(B,LayoutB,CallsB),
     append(CallsA,CallsB,Calls).
-analyze_body(M:X,Layout,[call(M, Fun, Ar)]) :- !, functor(X,Fun,Ar).
-analyze_body(X,Layout,[call(nil, Fun, Ar)]) :- !, functor(X,Fun,Ar).
+analyze_body(M:X,Layout,[call(M, FunOut, Ar)]) :-
+    !, functor(X,Fun,Ar),
+    (recursive_call(M,Fun,Ar) -> FunOut = 'RECURSIVE_CALL' ; FunOut = Fun).
+analyze_body(X,Layout,[call(nil, FunOut, Ar)]) :-
+    !, functor(X,Fun,Ar),
+    (recursive_call(M,Fun,Ar) -> FunOut = 'RECURSIVE_CALL' ; FunOut = Fun).
+
+recursive_call(Mod,Fun,Ar) :-
+    in_module(M), in_clause(Fun,Ar).
 
 assert_exports(Name,N/A) :-
     !, assert(exports(Name,N,A)).
@@ -202,7 +210,8 @@ analyze((Head :- Body), [LayoutHead | LayoutSub], (Head :- Body)) :-
     Head =.. [Fun|Args],
     flatten([LayoutHead|LayoutSub],[StartLine|FlatLayout]),
     (FlatLayout = [] -> EndLine = StartLine ; last(FlatLayout,EndLine)),
-    assert(predicates(Fun,Ar,Args,Body,Calls,StartLine,EndLine)).
+    assert(predicates(Fun,Ar,Args,Body,Calls,StartLine,EndLine)),
+    assert(in_clause(Fun,Ar)).
 analyze(Fact, Layout, Fact) :-
     !, functor(Fact,Fun,Ar),
     Fact =.. [Fun|Args],
