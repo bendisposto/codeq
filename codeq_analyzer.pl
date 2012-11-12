@@ -117,7 +117,7 @@ update_module(Call,Arity,Module2) :-
     (predicate_property(X:CallAndVar,built_in) -> Module2 = built_in ;
      predicate_property(X:CallAndVar,imported_from(From)) -> Module2 = From ;
      predicates(Call,Arity,_,_,_,_,_) -> Module2 = X ;
-     imports(ModuleI,Name,Arity) -> Module2 = ModuleI ;
+     imports(ModuleI,Call,Arity) -> Module2 = ModuleI ;
      otherwise -> Module2 = foo_error).
 
 layout_sub_term([],_,[]).
