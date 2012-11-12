@@ -167,9 +167,9 @@ analyze_body((A;B),Layout,Calls) :-
 analyze_body(M:X,_Layout,[call(M, FunOut, Ar)]) :-
     !, functor(X,Fun,Ar),
     (recursive_call(M,Fun,Ar) -> FunOut = 'RECURSIVE_CALL' ; FunOut = Fun).
-analyze_body(X,Layout,[call(nil, FunOut, Ar)]) :-
+analyze_body(X,_Layout,[call(nil, FunOut, Ar)]) :-
     !, functor(X,Fun,Ar),
-    (recursive_call(M,Fun,Ar) -> FunOut = 'RECURSIVE_CALL' ; FunOut = Fun).
+    (recursive_call(_M,Fun,Ar) -> FunOut = 'RECURSIVE_CALL' ; FunOut = Fun).
 
 recursive_call(Mod,Fun,Ar) :-
     in_module(Mod), in_clause(Fun,Ar).
@@ -190,7 +190,7 @@ assert_metas(Term) :-
 
 analyze((:- module(Name, ListOfExported)), _Layout, (:- module(Name,ListOfExported))) :-
     !, retract(in_module(_)), assert(in_module(Name)),maplist(assert_exports(Name),ListOfExported).
-analyze((:- use_module(Name, ListOfImported)), Layout, (:- true)) :-
+analyze((:- use_module(Name, ListOfImported)), _Layout, (:- true)) :-
     !, maplist(assert_imports(Name),ListOfImported).
 analyze((:- use_module(Name)), _Layout, (:- true)) :-
     !, assert(imports(Name)).
