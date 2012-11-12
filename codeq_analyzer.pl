@@ -7,6 +7,8 @@
 :- use_module(library(system)).
 :- use_module(library(file_systems)).
 
+:- use_module(escaper).
+
 :- op(300, fy, ~~).
 
 :- include(prob_search_paths).
@@ -23,19 +25,19 @@ flatten1(NonList,Tail,[NonList|Tail]).
 
 write_exports :-
     exports(Module,Name,Arity),
-    format('["~w" "~w" ~w]', [Module,Name,Arity]),
+    escaping_format('["~w" "~w" ~w]', [Module,Name,Arity]),
     fail.
 write_exports.
 
 write_import1 :-
     imports(Name),
-    format('"~w "',[Name]),
+    escaping_format('"~w "',[Name]),
     fail.
 write_import1.
     
 write_import3 :-
     imports(Module,Name,Arity),
-    format('["~w" "~w" ~w]', [Module,Name,Arity]),
+    escaping_format('["~w" "~w" ~w]', [Module,Name,Arity]),
     fail.
 write_import3.
 
@@ -73,20 +75,20 @@ write_predicates2(Name,Ar,Code,Calls,StartLines,EndLines,VC) :-
     write_predicates2(Name,Ar,NewCode,NewCalls,[StartLine|StartLines],[EndLine|EndLines],VCN2).
 write_predicates2(Name,Ar,Code,Calls,StartLines,EndLines,_VNC) :-
     is_dynamic(Name,Ar,Dynamic), is_meta(Name,Ar,Meta),
-    format('{ :name "~w" :arity ~w :code "~w" :startlines ~w :endlines ~w ~w ~w :calls [',[Name,Ar,Code,StartLines,EndLines,Dynamic,Meta]),
+    escaping_format('{ :name "~w" :arity ~w :code "~w" :startlines ~w :endlines ~w ~w ~w :calls [',[Name,Ar,Code,StartLines,EndLines,Dynamic,Meta]),
     write_calls(Calls),
     write(']}'),nl.
 	    
 write_calls([]).
 write_calls([call(Module,Name,Ar)|Calls]) :-
-    format('["~w" "~w" ~w]', [Module,Name,Ar]),
+    escaping_format('["~w" "~w" ~w]', [Module,Name,Ar]),
     write_calls(Calls).
 
 write_clj_representation :-
     update_calls_all_preds,
     write('{'), nl,
     in_module(Module),
-    format(':module "~w"\n', [Module]),
+    escaping_format(':module "~w"\n', [Module]),
     write(':exports ['), write_exports, write(']'), nl,
     write(':predicates ['), write_predicates, write(']'), nl,
     write(':import_module ['), write_import1, write(']'), nl,
