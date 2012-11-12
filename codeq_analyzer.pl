@@ -261,6 +261,7 @@ analyze((:- dynamic(X)), _Layout, (:- dynamic(X))) :-
     !, assert_dynamics(X).
 analyze((:- meta_predicate(X)), _Layout, (:- true)) :-
     !, assert_metas(X).
+analyze((:- op(P,T,N)), _Layout, (:- op(P,T,N))) :- !.
 analyze((:- _),_Layout,(:- true)) :- !.
 analyze((?- X),_Layout,(?- X)) :- !.
 analyze(end_of_file,_Layout,end_of_file) :- !.
