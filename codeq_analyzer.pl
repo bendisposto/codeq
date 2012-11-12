@@ -164,7 +164,7 @@ analyze_body((A;B),Layout,Calls) :-
     analyze_body(A,LayoutA,CallsA),
     analyze_body(B,LayoutB,CallsB),
     append(CallsA,CallsB,Calls).
-analyze_body(M:X,Layout,[call(M, FunOut, Ar)]) :-
+analyze_body(M:X,_Layout,[call(M, FunOut, Ar)]) :-
     !, functor(X,Fun,Ar),
     (recursive_call(M,Fun,Ar) -> FunOut = 'RECURSIVE_CALL' ; FunOut = Fun).
 analyze_body(X,Layout,[call(nil, FunOut, Ar)]) :-
@@ -172,7 +172,7 @@ analyze_body(X,Layout,[call(nil, FunOut, Ar)]) :-
     (recursive_call(M,Fun,Ar) -> FunOut = 'RECURSIVE_CALL' ; FunOut = Fun).
 
 recursive_call(Mod,Fun,Ar) :-
-    in_module(M), in_clause(Fun,Ar).
+    in_module(Mod), in_clause(Fun,Ar).
 
 assert_exports(Name,N/A) :-
     !, assert(exports(Name,N,A)).
