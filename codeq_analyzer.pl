@@ -14,9 +14,10 @@
 :- include(prob_search_paths).
 
 
-:- dynamic exports/3, imports/3, imports/1, predicates/7, dynamics/1, metas/1, in_module/1, in_clause/2.
+:- dynamic exports/3, imports/3, imports/1, predicates/7, dynamics/1, metas/1, in_module/1, in_clause/2, module_pos/2. 
 
 in_module('user').
+module_pos(0,0).
 
 flatten(List,FlatList) :- flatten1(List,[],FlatList).
 flatten1([],L,L) :- !.
@@ -88,7 +89,10 @@ write_clj_representation :-
     update_calls_all_preds,
     write('{'), nl,
     in_module(Module),
+    module_pos(StartLine,EndLine),
     escaping_format(':module "~w"\n', [Module]),
+    escaping_format(':module_startline ~w\n', [StartLine]),
+    escaping_format(':module_endline ~w\n', [EndLine]),
     write(':exports ['), write_exports, write(']'), nl,
     write(':predicates ['), write_predicates, write(']'), nl,
     write(':import_module ['), write_import1, write(']'), nl,
@@ -189,7 +193,9 @@ assert_metas(Term) :-
     (metas(Fun/Arg) -> true ; assert(metas(Fun/Arg))).
 
 analyze((:- module(Name, ListOfExported)), _Layout, (:- module(Name,ListOfExported))) :-
-    !, retract(in_module(_)), assert(in_module(Name)),maplist(assert_exports(Name),ListOfExported).
+    !, flatten(_Layout,[StartLine|FlatLayout]),
+    (FlatLayout = [] -> EndLine = StartLine ; last(FlatLayout,EndLine)),
+    retract(module_pos(_,_)), retract(in_module(_)), assert(in_module(Name)), assert(module_pos(StartLine,EndLine),  maplist(assert_exports(Name),ListOfExported).
 analyze((:- use_module(Name, ListOfImported)), _Layout, (:- true)) :-
     !, maplist(assert_imports(Name),ListOfImported).
 analyze((:- use_module(Name)), _Layout, (:- true)) :-
