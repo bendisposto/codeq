@@ -17,7 +17,7 @@
 :- dynamic exports/3, imports/3, imports/1, predicates/7, dynamics/1, metas/1, in_module/1, in_clause/2, module_pos/2. 
 
 in_module('user').
-module_pos(0,0).
+module_pos(1,1).
 
 flatten(List,FlatList) :- flatten1(List,[],FlatList).
 flatten1([],L,L) :- !.
@@ -195,7 +195,8 @@ assert_metas(Term) :-
 analyze((:- module(Name, ListOfExported)), _Layout, (:- module(Name,ListOfExported))) :-
     !, flatten(_Layout,[StartLine|FlatLayout]),
     (FlatLayout = [] -> EndLine = StartLine ; last(FlatLayout,EndLine)),
-    retract(module_pos(_,_)), retract(in_module(_)), assert(in_module(Name)), assert(module_pos(StartLine,EndLine),  maplist(assert_exports(Name),ListOfExported).
+    retract(module_pos(_,_)), retract(in_module(_)),
+    assert(in_module(Name)), assert(module_pos(StartLine,EndLine)),  maplist(assert_exports(Name),ListOfExported).
 analyze((:- use_module(Name, ListOfImported)), _Layout, (:- true)) :-
     !, maplist(assert_imports(Name),ListOfImported).
 analyze((:- use_module(Name)), _Layout, (:- true)) :-
