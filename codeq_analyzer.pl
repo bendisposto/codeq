@@ -62,25 +62,6 @@ bind_args2([V|Vs],VC,VCN) :-
     VCNT is VC + 1,
     bind_args(Vs,VCNT,VCN).
 
-wrapped_module(X,library(Y)) :- !, X=Y.
-wrapped_module(X,probsrc(Y)) :- !, X=Y.
-wrapped_module(X,extension(E)) :- !,
-    atom_chars(E,ExtensionPath),
-    atom_chars(X,Module),
-    suffix(ExtensionPath,Module).
-wrapped_module(X,probcspsrc(Y)) :- !, X=Y.
-wrapped_module(X,bparser(Y)) :- !, X=Y.
-wrapped_module(X,plugins(Y)) :- !, X=Y.
-wrapped_module(X,abstract_domains(Y)) :- !, X=Y.
-wrapped_module(X,tclsrc(Y)) :- !, X=Y.
-wrapped_module(X,X) :- !. % might even be unwrapped
-wrapped_module(X,Path) :-
-    atom_chars(Path,PathChars),
-    atom_chars(X,XChars),
-    ( append(Base,[.,p,l],PathChars),
-      suffix(Base,XChars)	 % module loaded with .pl ending
-    ; suffix(PathChars,XChars)). % or without
-
 is_dynamic(Name,Ar,':dynamic true') :- dynamics(Name/Ar), !.
 is_dynamic(_Name,_Ar,':dynamic false').
 is_meta(Name,Ar,':meta true') :- metas(Name/Ar), !.
@@ -217,10 +198,10 @@ analyze((:- module(Name, ListOfExported)), _Layout, (:- module(Name,ListOfExport
     retract(module_pos(_,_)), retract(in_module(_)),
     assert(in_module(Name)), assert(module_pos(StartLine,EndLine)),  maplist(assert_exports(Name),ListOfExported).
 analyze((:- use_module(Name, ListOfImported)), _Layout, (:- true)) :-
-    !, wrapped_module(UnwrappedName,Name),
+    !, unwrap_module(Name,UnwrappedName),
     maplist(assert_imports(UnwrappedName),ListOfImported).
 analyze((:- use_module(Name)), _Layout, (:- true)) :-
-    !, wrapped_module(UnwrappedName,Name),
+    !, unwrap_module(Name,UnwrappedName),
     assert(imports(UnwrappedName)).
 analyze((:- dynamic(X)), _Layout, (:- dynamic(X))) :-
     !, assert_dynamics(X).

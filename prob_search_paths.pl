@@ -75,3 +75,31 @@ set_compile_time_search_pathes :-
     set_search_path(abstract_domains, App, '/plugins/absint/abstract_domains'),
     set_search_path(tclsrc, App, '/tcl').
 :- set_compile_time_search_pathes.
+
+unwrap_module(library(X),Y) :- !, X=Y.
+unwrap_module(probsrc(X),Y) :- !, X=Y.
+unwrap_module(probcspsrc(X),Y) :- !, X=Y.
+unwrap_module(bparser(X),Y) :- !, X=Y.
+unwrap_module(plugins(X),Y) :- !, X=Y.
+unwrap_module(abstract_domains(X),Y) :- !, X=Y.
+unwrap_module(tclsrc(X),Y) :- !, X=Y.
+unwrap_module(extension(E),Y) :- !,
+    atom_chars(E,ExtensionPath),
+    suffix(ExtensionPath,Module),
+    atom_chars(Y,Module).
+unwrap_module(Path,X) :-
+    atom_chars(Path,PathChars),
+    ( append(Base,[.,p,l],PathChars),
+      suffix(Base,XChars)	 % module loaded with .pl ending
+    ; suffix(PathChars,XChars)), % or without
+    remove_path(XChars,CharsWithoutPath),
+    atom_chars(X,CharsWithoutPath).
+unwrap_module(X,X) :- !. % might even be unwrapped
+
+:- use_module(library(lists)).
+
+remove_path(L,L2) :-
+    reverse(L,LR),
+    nth0(N,LR,'/',_), %key code of /
+    sublist(LR, LR2, 0, N, A),
+    reverse(LR2,L2).
