@@ -32,7 +32,7 @@ write_exports.
 
 write_import1 :-
     imports(Name),
-    escaping_format('"~w "',[Name]),
+    escaping_format('"~w"',[Name]),
     fail.
 write_import1.
     
