@@ -37,22 +37,10 @@
 (defn create-codeq [file loc parent code]
   {:codeq/file file :codeq/loc loc :codeq/parent parent :codeq/code code})
 
-
-(defn create-module [{ :keys [module exports import_module import_predicates] :as info} {:keys [codename->id sha->id added] :as ctx} src datoms]
-  (let [name-id (codename->id module)
-        newid? (and (tempid? name-id) (not (added name-id)))
-        name-tx (if newid? [{:db/id name-id :code/name module}] [])
-        added (if newid? (conj added name-id) added)
-        exports-tx [] ; (mapcat (partial mk-export ctx) exports)
-        import-mod-tx []; (mapcat (partial mk-module-import ctx) import_module)
-                                        ; add used modules
-                                        ; add used predicates
-        transaction (concat name-tx exports-tx)]
-
-    (println name-tx exports-tx import-mod-tx)
-    transaction))
-
 (defn create-predicates  [_ _ _ _])
+
+
+
 
 (defn mk-path [s] (apply str (cons "." (interleave (repeat "/") (rest (.split s "/"))))))
 
@@ -64,45 +52,78 @@
            (do (println "ok.")  (reset! current-commit commit))))))
 
 (defn process-used-module [db codeq used]
-  (let [id (from-name db (.trim used))]
-    (cond-> [{:db/id codeq :module/use_module id}] (tempid? id) (conj {:db/id id :code/name used}))))
+  (let [id (from-name db (.trim used))
+        codeq-id (or (ffirst (d/q '[:find ?e :in $ ?id :where [?e :prolog/type :type/module] [?e :module/name ?id]] db id))
+                    (d/tempid :db.part/user))]
+    (cond-> [[:db/add codeq :module/use_module codeq-id]]
+            (tempid? id) (conj {:db/id id :code/name used})
+            (tempid? codeq-id) (conj {:db/id codeq-id
+                                      :prolog/type :type/module
+                                      :module/name id }))))
 
-(defn process-info [db {:keys [module module_startline module_endline import_module] :as info} src filename f tx-data]
+(defn process-used-predicates [db codeq [module predicate arity]]
+  (let [predicate-id (from-name db predicate)
+        module-id (from-name db module)
+        new-predicate-id? (tempid? predicate-id)
+        new-module-id? (tempid? module-id)
+        codeq-id (or (ffirst (d/q '[:find ?e :in $ ?m ?p ?a
+                                    :where [?e :prolog/type :type/predicate]
+                                    [?e :predicate/name ?p]
+                                    [?e :predicate/arity ?a]
+                                    [?e :predicate/module ?m]]
+                                  db module-id predicate-id arity))
+                     (d/tempid :db.part/user))]
+    (cond-> []
+            new-predicate-id? (conj {:db/id predicate-id :code/name predicate})
+            new-module-id? (conj {:db/id module-id :code/name module})
+            (tempid? codeq-id)  (conj {:db/id codeq-id
+                                       :prolog/type :type/predicate
+                                       :predicate/module module-id
+                                       :predicate/name predicate-id
+                                       :predicate/arity arity})
+            :always (conj [:db/add codeq :module/use_predicate codeq-id]))))
+
+(defn process-info [db {:keys [module module_startline module_endline import_module import_predicates] :as info} src filename f]
   (let [lc (last-column src module_endline)
         name-id (from-name db module)
         code-id (from-code db module)
         new-name-id? (tempid? name-id)
         new-code-id? (tempid? code-id)
-        tx-data (cond-> tx-data new-code-id? (conj {:db/id code-id :code/sha (az/sha module) :code/text module}) )
-        tx-data (cond-> tx-data new-name-id? (conj {:db/id name-id :code/name module}))
         loc (str module_startline " " 1 " " module_endline " " lc)
-        codeq-id (or (ffirst (d/q '[:find ?e :in $ ?f ?loc
-                                   :where [?e :codeq/file ?f] [?e :codeq/loc ?loc]]
-                                 db f loc))
-                    (d/tempid :db.part/user))
-        new-codeq-id? (tempid? codeq-id)
-        tx-data (cond-> tx-data new-codeq-id?
-                        (conj {:db/id codeq-id
-                               :codeq/file f
-                               :codeq/loc loc
-                               :codeq/code code-id
-                               :module/name name-id }))
-        tx-data (concat tx-data (mapcat (partial process-used-module db codeq-id) import_module))]
-  
-    (println :tx tx-data)
-    tx-data
-    ))
+        codeq-id (or (ffirst (d/q '[:find ?e :in $ ?id
+                                    :where [?e :module/name ?id] [?e :prolog/type :type/module]]
+                                  db name-id))
+                     (d/tempid :db.part/user))
+        new-codeq-id? (tempid? codeq-id)]
+    
+    (cond-> []
+            new-code-id? (conj {:db/id code-id :code/sha (az/sha module) :code/text module})
+            new-name-id? (conj {:db/id name-id :code/name module})
+            new-codeq-id? (conj {:db/id codeq-id})
+            :always (conj [:db/add codeq-id :codeq/file f]
+                          [:db/add codeq-id :codeq/loc loc]
+                          [:db/add codeq-id :prolog/type :type/module]
+                          [:db/add codeq-id :codeq/code code-id]
+                          [:db/add codeq-id :module/name name-id])
+            :always (concat (mapcat (partial process-used-module db codeq-id) import_module))
+            :always (concat (mapcat (partial process-used-predicates db codeq-id) import_predicates))
+            )))
+
+(defn mk-sicstus-call [filename]
+  (str "prolog_flag(redefine_warnings, _, off),on_exception(X,(use_module('"
+       filename
+       "'),write_clj_representation,halt),(print('{:error \"'),print(X),print('\"}'),nl,halt(1)))."))
 
 (defn analyze-file [db filename src f]
-  (let [t (sh "../analyzer.sh" filename)
-        output (:out t)
+  (let [t (sh "sicstus" "-l" "../codeq_analyzer.pl" "--goal"
+              (mk-sicstus-call filename))
+         output (:out t)
         info (read-string output)]
     (assert (< 0 (count info)) "** Error: Prolog returned empty result")
     (when-not (= 0 (:exit t)) (println "*** Error: " (:err t)))
     (if (:error info)
       (println "*** Error:" (:error info))
-      (->> []
-           (process-info db info src filename f)))))
+      (process-info db info src filename f))))
 
 (defn process-file [db src f [commit file]]
  
@@ -133,13 +154,17 @@
                      :db.install/_attribute :db.part/db})))
 
 (defn schemas []
-  {1 [(attr prolog/identity one string "The identity of the entity. For modules it's the name, for predicates its name/arity and for a clause it is the location.")
-
+  {1 [[:db/add #db/id[:db.part/user] :db/ident :type/module]
+      [:db/add #db/id[:db.part/user] :db/ident :type/predicate]
+      [:db/add #db/id[:db.part/user] :db/ident :type/clause]
+      
+      (attr prolog/type one ref "A prolog codeq is either a module, a predicate or a clause")
       (attr module/name one ref "The name of the module. Reference to codename entity.")
       (attr module/use_module many ref "Modules that are used by this module. References to other module's codeq entitie.s")
       (attr module/use_predicate many ref "Imported predicates. Reference to predicate's codeqs.")
       (attr module/export many ref "Exported predicates. Reference to predicate's codeqs.")
-      
+
+      (attr predicate/module one ref "The name of the containing module")
       (attr predicate/name one ref "The name of a predicate. Reference to codename entity.")
       (attr predicate/arity one long "Arity of the predicate. Long value.")
       (attr predicate/dynamic one boolean "True iff the predicate id declared dynamic.") 
