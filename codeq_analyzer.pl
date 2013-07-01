@@ -129,6 +129,7 @@ layout_sub_term([H|T],N,Res) :-
     (N=<1 -> Res=H ; N1 is N-1, layout_sub_term(T,N1,Res)).
 
 analyze_body(X,_Layout,[call('built_in', 'call', 1)]) :- var(X), !.
+analyze_body(M:X,_Layout,[call('built_in', 'call', 1)]) :- var(X), !.
 analyze_body(\+(X),Layout,[call('built_in','not',1)|Calls]) :-
     !, analyze_body(X,Layout,Calls).
 %analyze_body('~~'(X),Layout) :-
